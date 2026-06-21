@@ -108,8 +108,8 @@
   .auth-err { background: #2d1515; border: 1px solid #5a2020; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #f87171; margin-bottom: 8px; display: none; }
   .auth-toggle { margin-top: 16px; font-size: 13px; color: #666; text-align: center; }
   .auth-toggle a { color: #a5b4fc; text-decoration: none; }
-  .logout-btn { margin-left: auto; background: none; border: none; color: #555; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
-  .logout-btn:hover { color: #f87171; }
+  .logout-btn { margin-left: auto; background: none; border: 1px solid #333; color: #777; cursor: pointer; font-size: 11px; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.3px; }
+  .logout-btn:hover { border-color: #f87171; color: #f87171; }
 </style>
 </head>
 <body>
@@ -145,7 +145,7 @@
 </div>
 
 <div class="sidebar">
-  <div class="sidebar-header">⚡ LLM Router<button class="logout-btn" onclick="logout()" title="Sign out">↩</button></div>
+  <div class="sidebar-header">⚡ LLM Router<button class="logout-btn" onclick="logout()">Sign out</button></div>
 
   <div class="sidebar-section">Model</div>
   <select class="model-select" id="modelSelect">
@@ -173,9 +173,8 @@
 
   <div class="messages" id="messages">
     <div class="empty-state">
-      <h2>Free LLM Router</h2>
-      ~51M free tokens/day across 4 providers<br>
-      Auto-switches when one hits its limit
+      <h2>Kong AI Gateway</h2>
+      One interface, five free AI providers — auto-switches when one hits its limit
     </div>
   </div>
 
@@ -656,7 +655,7 @@
   function renderMessages() {
     const box = document.getElementById('messages');
     if (!history.length) {
-      box.innerHTML = `<div class="empty-state"><h2>Free LLM Router</h2>~51M free tokens/day across 4 providers<br>Auto-switches when one hits its limit</div>`;
+      box.innerHTML = `<div class="empty-state"><h2>Kong AI Gateway</h2>One interface, five free AI providers — auto-switches when one hits its limit</div>`;
       return;
     }
     box.innerHTML = '';
