@@ -1,0 +1,53 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: ai-llm-router
+    url: http://localhost:65535  # dummy — ai-proxy overrides upstream
+    routes:
+      - name: ai-chat
+        paths:
+          - /ai/chat
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify:
+                - exp
+          # ai-proxy must be scoped to a route, not a service
+          - name: ai-proxy
+            config:
+              route_type: llm/v1/chat
+              auth:
+                param_name: key
+                param_value: "${GEMINI_API_KEY}"
+                param_location: query
+              model:
+                provider: gemini
+                name: gemini-2.5-flash
+                options:
+                  max_tokens: 1024
+                  temperature: 0.7
+
+consumers:
+  - username: llm-router-app
+    jwt_secrets:
+      - algorithm: HS256
+        key: llm-router
+        secret: "${JWT_SECRET}"
+
+plugins:
+  # Global rate limit — stay under Gemini 15 rpm free tier
+  - name: rate-limiting
+    config:
+      minute: 15
+      policy: local
+
+  # Log every request to stdout as JSON (visible in `docker compose logs`)
+  - name: file-log
+    config:
+      path: /dev/stdout
+      reopen: false

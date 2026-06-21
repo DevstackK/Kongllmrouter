@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — LLM Router</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+
+  .topbar { background: #1a1a1a; border-bottom: 1px solid #2a2a2a; padding: 14px 24px; display: flex; align-items: center; gap: 12px; }
+  .topbar h1 { font-size: 16px; font-weight: 600; }
+  .admin-badge { font-size: 11px; padding: 2px 8px; background: #2d1f5e; color: #a5b4fc; border-radius: 20px; }
+  .back-btn { margin-left: auto; font-size: 13px; color: #666; text-decoration: none; padding: 5px 12px; border: 1px solid #333; border-radius: 8px; }
+  .back-btn:hover { color: #aaa; border-color: #555; }
+  .signout-btn { font-size: 13px; color: #666; background: none; border: 1px solid #333; border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+  .signout-btn:hover { color: #f87171; border-color: #5a2020; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  .section-title { font-size: 11px; text-transform: uppercase; color: #555; letter-spacing: 0.8px; margin-bottom: 14px; margin-top: 36px; }
+  .section-title:first-child { margin-top: 0; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .stat-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 20px; }
+  .stat-value { font-size: 34px; font-weight: 700; margin-bottom: 4px; }
+  .stat-label { font-size: 12px; color: #666; }
+
+  .provider-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+  .provider-card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 10px; padding: 14px 18px; }
+  .provider-name { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #a5b4fc; }
+  .provider-row { font-size: 12px; color: #666; display: flex; justify-content: space-between; margin-top: 5px; }
+  .provider-row span { color: #e0e0e0; }
+
+  .table-wrap { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 11px 16px; text-align: left; font-size: 11px; text-transform: uppercase; color: #555; letter-spacing: 0.6px; border-bottom: 1px solid #2a2a2a; }
+  td { padding: 11px 16px; font-size: 13px; border-bottom: 1px solid #1e1e1e; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #1e1e1e; }
+  .badge-admin { font-size: 10px; padding: 2px 6px; background: #2d1f5e; color: #a5b4fc; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+  .del-btn { background: none; border: 1px solid #333; border-radius: 6px; color: #555; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+  .del-btn:hover { border-color: #5a2020; color: #f87171; }
+
+  .activity-wrap { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden; }
+  .activity-item { padding: 11px 16px; border-bottom: 1px solid #1e1e1e; display: flex; gap: 12px; align-items: flex-start; }
+  .activity-item:last-child { border-bottom: none; }
+  .role-pill { font-size: 10px; padding: 2px 7px; border-radius: 10px; flex-shrink: 0; margin-top: 2px; font-weight: 600; }
+  .role-pill.user { background: #1f2d5e; color: #93c5fd; }
+  .role-pill.assistant { background: #1e3a2f; color: #6ee7b7; }
+  .activity-text { font-size: 13px; color: #999; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity-meta { font-size: 11px; color: #555; flex-shrink: 0; text-align: right; line-height: 1.6; }
+
+  .empty { text-align: center; color: #444; padding: 32px 16px; font-size: 13px; }
+  .error-bar { background: #2d1515; border: 1px solid #5a2020; border-radius: 8px; padding: 12px 16px; color: #f87171; font-size: 13px; margin-bottom: 24px; display: none; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>⚡ LLM Router</h1>
+  <span class="admin-badge">Admin</span>
+  <a href="/" class="back-btn">← Back to App</a>
+  <button class="signout-btn" onclick="logout()">Sign Out</button>
+</div>
+
+<div class="container">
+  <div class="error-bar" id="errorBar"></div>
+
+  <div class="section-title">Overview</div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-value" id="sUsers">—</div><div class="stat-label">Total Users</div></div>
+    <div class="stat-card"><div class="stat-value" id="sMsgs">—</div><div class="stat-label">Total Messages</div></div>
+    <div class="stat-card"><div class="stat-value" id="sToday">—</div><div class="stat-label">Messages Today</div></div>
+  </div>
+
+  <div class="section-title">Daily Token Usage <span style="color:#555; font-weight:normal; text-transform:none; font-size:11px;" id="limitLabel"></span></div>
+  <div class="table-wrap" style="margin-bottom:0">
+    <table>
+      <thead><tr><th>User</th><th>Tokens Used Today</th><th>Remaining</th><th>Status</th></tr></thead>
+      <tbody id="usageBody"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+    <span>Featured OpenRouter Models</span>
+    <button class="signout-btn" id="refreshBtn" onclick="refreshModels()" style="margin-top:0">↻ Refresh now</button>
+  </div>
+  <div class="table-wrap" style="margin-bottom:0" id="featuredWrap">
+    <table>
+      <thead><tr><th>Model</th><th>Context</th><th>Price</th></tr></thead>
+      <tbody id="featuredBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Provider Usage</div>
+  <div class="provider-grid" id="providerGrid"><div class="empty">Loading…</div></div>
+
+  <div class="section-title">Users</div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Joined</th><th></th></tr></thead>
+      <tbody id="usersBody"><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="section-title">Recent Activity</div>
+  <div class="activity-wrap" id="activityList"><div class="empty">Loading…</div></div>
+</div>
+
+<script>
+  function token() { return localStorage.getItem('token'); }
+
+  function logout() { localStorage.removeItem('token'); window.location.href = '/'; }
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fmtDate(ts) {
+    return new Date(ts * 1000).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
+  }
+  function fmtTime(ts) {
+    return new Date(ts * 1000).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  async function apiFetch(url, opts = {}) {
+    const resp = await fetch(url, {
+      ...opts,
+      headers: { ...(opts.headers || {}), 'Authorization': `Bearer ${token()}` },
+    });
+    if (resp.status === 401) { logout(); return null; }
+    if (resp.status === 403) {
+      const bar = document.getElementById('errorBar');
+      bar.textContent = 'Access denied — admin account required.';
+      bar.style.display = 'block';
+      return null;
+    }
+    return resp;
+  }
+
+  async function loadStats() {
+    const resp = await apiFetch('/api/admin/stats');
+    if (!resp) return;
+    const d = await resp.json();
+    document.getElementById('sUsers').textContent = d.total_users;
+    document.getElementById('sMsgs').textContent = d.total_messages.toLocaleString();
+    document.getElementById('sToday').textContent = d.today_messages.toLocaleString();
+
+    const limit = d.daily_token_limit;
+    document.getElementById('limitLabel').textContent = `— ${limit.toLocaleString()} tokens/day per user`;
+    const usageBody = document.getElementById('usageBody');
+    usageBody.innerHTML = d.user_usage.map(u => {
+      const used = u.tokens_today;
+      const remaining = u.is_admin ? '∞' : Math.max(0, limit - used).toLocaleString();
+      const pct = u.is_admin ? 0 : Math.min(100, Math.round(used / limit * 100));
+      const status = u.is_admin ? '<span style="color:#a5b4fc">Admin</span>'
+        : pct >= 100 ? '<span style="color:#f87171">Limit reached</span>'
+        : pct >= 80  ? '<span style="color:#fbbf24">Warning</span>'
+        : '<span style="color:#6ee7b7">OK</span>';
+      return `<tr>
+        <td>${escHtml(u.email)}</td>
+        <td>${used.toLocaleString()} ${!u.is_admin ? `<span style="color:#555;font-size:11px">(${pct}%)</span>` : ''}</td>
+        <td>${remaining}</td>
+        <td>${status}</td>
+      </tr>`;
+    }).join('');
+
+    const grid = document.getElementById('providerGrid');
+    if (!d.providers.length) {
+      grid.innerHTML = '<div class="empty">No provider usage recorded yet</div>';
+      return;
+    }
+    grid.innerHTML = d.providers.map(p => `
+      <div class="provider-card">
+        <div class="provider-name">${escHtml(p.provider)}</div>
+        <div class="provider-row">Requests <span>${p.requests.toLocaleString()}</span></div>
+        <div class="provider-row">Input tokens <span>${(p.input_tokens || 0).toLocaleString()}</span></div>
+        <div class="provider-row">Output tokens <span>${(p.output_tokens || 0).toLocaleString()}</span></div>
+      </div>`).join('');
+  }
+
+  let myId;
+  async function loadUsers() {
+    const resp = await apiFetch('/api/admin/users');
+    if (!resp) return;
+    const users = await resp.json();
+    try { myId = JSON.parse(atob(token().split('.')[1])).sub; } catch(e) {}
+    const tbody = document.getElementById('usersBody');
+    if (!users.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty">No users</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td>${escHtml(u.email)}${u.is_admin ? '<span class="badge-admin">admin</span>' : ''}</td>
+        <td>${fmtDate(u.created_at)}</td>
+        <td>${u.id !== myId ? `<button class="del-btn" onclick="deleteUser(${u.id},'${escHtml(u.email)}')">Delete</button>` : ''}</td>
+      </tr>`).join('');
+  }
+
+  async function deleteUser(id, email) {
+    if (!confirm(`Delete ${email}?\n\nThis removes all their agents and messages.`)) return;
+    const resp = await apiFetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+    if (resp && resp.ok) loadUsers();
+  }
+
+  async function loadActivity() {
+    const resp = await apiFetch('/api/admin/activity');
+    if (!resp) return;
+    const items = await resp.json();
+    const list = document.getElementById('activityList');
+    if (!items.length) {
+      list.innerHTML = '<div class="empty">No activity yet</div>';
+      return;
+    }
+    list.innerHTML = items.map(m => `
+      <div class="activity-item">
+        <span class="role-pill ${escHtml(m.role)}">${escHtml(m.role)}</span>
+        <span class="activity-text">${escHtml(m.content)}</span>
+        <span class="activity-meta">
+          ${m.provider ? escHtml(m.provider) + '<br>' : ''}
+          ${m.agent_name ? escHtml(m.agent_name) + '<br>' : ''}
+          ${fmtTime(m.created_at)}
+        </span>
+      </div>`).join('');
+  }
+
+  async function loadFeatured() {
+    const resp = await apiFetch('/api/providers');
+    if (!resp) return;
+    const providers = await resp.json();
+    const featured = providers.filter(p => p.featured);
+    const tbody = document.getElementById('featuredBody');
+    if (!featured.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty">No featured models yet — click Refresh now</td></tr>';
+      return;
+    }
+    tbody.innerHTML = featured.map(p => `
+      <tr>
+        <td style="font-size:12px">${escHtml(p.name)}</td>
+        <td style="color:#666;font-size:12px">${p.context ? (p.context / 1000).toFixed(0) + 'k' : '—'}</td>
+        <td style="font-size:12px">${escHtml(p.price || '—')}</td>
+      </tr>`).join('');
+  }
+
+  async function refreshModels() {
+    const btn = document.getElementById('refreshBtn');
+    btn.textContent = '↻ Refreshing…';
+    btn.disabled = true;
+    const resp = await apiFetch('/api/cron/refresh-models');
+    btn.textContent = '↻ Refresh now';
+    btn.disabled = false;
+    if (!resp) return;
+    const d = await resp.json();
+    if (d.ok) { loadFeatured(); }
+    else {
+      const bar = document.getElementById('errorBar');
+      bar.textContent = d.error || 'Refresh failed';
+      bar.style.display = 'block';
+    }
+  }
+
+  async function init() {
+    if (!token()) { window.location.href = '/'; return; }
+    await Promise.all([loadStats(), loadUsers(), loadActivity(), loadFeatured()]);
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free LLM Router</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; overflow: hidden; }
+
+  .sidebar { width: 260px; background: #1a1a1a; border-right: 1px solid #2a2a2a; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 20px 16px 12px; font-size: 18px; font-weight: 700; color: #fff; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 8px; }
+  .sidebar-section { padding: 12px 16px 6px; font-size: 11px; text-transform: uppercase; color: #666; letter-spacing: 0.8px; }
+
+  .model-select { margin: 8px 12px; padding: 8px 10px; background: #252525; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; font-size: 13px; width: calc(100% - 24px); cursor: pointer; }
+  .model-select:focus { outline: none; border-color: #4f46e5; }
+  option { background: #1a1a1a; }
+
+  .agent-list { flex: 1; overflow-y: auto; padding: 4px 8px; }
+  .agent-item { padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; transition: background 0.1s; }
+  .agent-item:hover { background: #252525; }
+  .agent-item.active { background: #2d2b55; color: #a5b4fc; }
+  .del-btn { opacity: 0; font-size: 18px; color: #555; background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1; }
+  .agent-item:hover .del-btn { opacity: 1; }
+  .del-btn:hover { color: #f87171 !important; }
+
+  .new-chat-btn { margin: 4px 12px 2px; padding: 8px; background: transparent; border: 1px solid #333; border-radius: 8px; color: #aaa; font-size: 13px; cursor: pointer; width: calc(100% - 24px); text-align: left; }
+  .new-chat-btn:hover { background: #252525; color: #fff; }
+  .new-agent-btn { margin: 4px 12px 12px; padding: 8px; background: #4f46e5; border: none; border-radius: 8px; color: #fff; font-size: 13px; cursor: pointer; width: calc(100% - 24px); }
+  .new-agent-btn:hover { background: #4338ca; }
+
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .topbar { padding: 12px 20px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 10px; background: #1a1a1a; min-height: 52px; }
+  .topbar-title { font-weight: 600; font-size: 15px; }
+  .provider-badge { font-size: 11px; padding: 3px 8px; background: #1e3a2f; color: #6ee7b7; border-radius: 20px; }
+  .clear-btn { margin-left: auto; background: transparent; border: 1px solid #333; color: #666; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; }
+  .clear-btn:hover { border-color: #555; color: #aaa; }
+
+  .messages { flex: 1; overflow-y: auto; padding: 24px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .message { display: flex; gap: 12px; }
+  .message.user { flex-direction: row-reverse; align-self: flex-end; max-width: 75%; }
+  .message.assistant { max-width: 80%; }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 2px; }
+  .message.user .avatar { background: #4f46e5; }
+  .message.assistant .avatar { background: #1e3a2f; }
+  .msg-body { display: flex; flex-direction: column; gap: 4px; }
+  .bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+  .message.user .bubble { background: #4f46e5; color: #fff; border-bottom-right-radius: 4px; }
+  .message.assistant .bubble { background: #1e1e1e; border: 1px solid #2a2a2a; border-bottom-left-radius: 4px; }
+  .msg-meta { font-size: 11px; color: #555; padding: 0 4px; }
+
+  .input-area { padding: 14px 20px 16px; border-top: 1px solid #2a2a2a; background: #1a1a1a; }
+  .input-row { display: flex; gap: 10px; align-items: flex-end; background: #252525; border: 1px solid #333; border-radius: 12px; padding: 10px 12px; transition: border-color 0.15s; }
+  .input-row:focus-within { border-color: #4f46e5; }
+  textarea { flex: 1; background: none; border: none; color: #e0e0e0; font-size: 14px; resize: none; outline: none; font-family: inherit; line-height: 1.5; max-height: 160px; min-height: 24px; }
+  textarea::placeholder { color: #555; }
+  .send-btn { background: #4f46e5; border: none; border-radius: 8px; color: #fff; padding: 8px 16px; cursor: pointer; font-size: 14px; flex-shrink: 0; transition: background 0.15s; }
+  .send-btn:hover:not(:disabled) { background: #4338ca; }
+  .send-btn:disabled { background: #2a2a2a; color: #555; cursor: not-allowed; }
+
+  .empty-state { text-align: center; color: #444; margin: auto; font-size: 14px; line-height: 2; }
+  .empty-state h2 { font-size: 22px; color: #666; margin-bottom: 8px; }
+
+  .typing { display: flex; gap: 5px; padding: 12px 16px; background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 12px; border-bottom-left-radius: 4px; width: fit-content; }
+  .dot { width: 6px; height: 6px; background: #555; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 24px; width: 460px; }
+  .modal h2 { font-size: 16px; margin-bottom: 4px; }
+  .modal p { font-size: 13px; color: #666; margin-bottom: 16px; }
+  .modal label { font-size: 12px; color: #888; display: block; margin-bottom: 4px; margin-top: 14px; }
+  .modal input, .modal textarea, .modal select { width: 100%; background: #252525; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; padding: 9px 11px; font-size: 14px; font-family: inherit; outline: none; }
+  .modal input:focus, .modal textarea:focus, .modal select:focus { border-color: #4f46e5; }
+  .modal textarea { resize: vertical; min-height: 90px; }
+  .modal-btns { display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+  .btn-cancel { padding: 8px 16px; background: #2a2a2a; border: 1px solid #333; border-radius: 8px; color: #aaa; cursor: pointer; font-size: 13px; }
+  .btn-save { padding: 8px 20px; background: #4f46e5; border: none; border-radius: 8px; color: #fff; cursor: pointer; font-size: 13px; }
+  .btn-save:hover { background: #4338ca; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+  .models-popup { background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 24px; width: 500px; max-width: 95vw; max-height: 80vh; display: flex; flex-direction: column; }
+  .models-popup h2 { font-size: 16px; margin-bottom: 4px; }
+  .models-popup .sub { font-size: 12px; color: #555; margin-bottom: 16px; }
+  .models-list { overflow-y: auto; flex: 1; }
+  .model-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #222; gap: 12px; }
+  .model-row:last-child { border-bottom: none; }
+  .model-num { font-size: 11px; color: #444; width: 18px; flex-shrink: 0; }
+  .model-name { font-size: 13px; flex: 1; }
+  .model-meta { display: flex; gap: 10px; font-size: 11px; color: #555; flex-shrink: 0; }
+  .model-free { color: #6ee7b7; }
+
+  .auth-overlay { position: fixed; inset: 0; background: #0f0f0f; z-index: 200; display: flex; align-items: center; justify-content: center; }
+  .auth-box { background: #1e1e1e; border: 1px solid #333; border-radius: 14px; padding: 32px; width: 380px; }
+  .auth-box h1 { font-size: 22px; margin-bottom: 4px; text-align: center; }
+  .auth-sub { font-size: 13px; color: #666; text-align: center; margin-bottom: 24px !important; }
+  .auth-box label { display: block; font-size: 12px; color: #888; margin: 12px 0 4px; }
+  .auth-box input { width: 100%; background: #252525; border: 1px solid #333; border-radius: 8px; color: #e0e0e0; padding: 9px 11px; font-size: 14px; font-family: inherit; outline: none; box-sizing: border-box; }
+  .auth-box input:focus { border-color: #4f46e5; }
+  .auth-submit { width: 100%; margin-top: 20px; padding: 10px; background: #4f46e5; border: none; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; }
+  .auth-submit:hover { background: #4338ca; }
+  .auth-err { background: #2d1515; border: 1px solid #5a2020; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #f87171; margin-bottom: 8px; display: none; }
+  .auth-toggle { margin-top: 16px; font-size: 13px; color: #666; text-align: center; }
+  .auth-toggle a { color: #a5b4fc; text-decoration: none; }
+  .logout-btn { margin-left: auto; background: none; border: none; color: #555; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+  .logout-btn:hover { color: #f87171; }
+</style>
+</head>
+<body>
+
+<div id="authOverlay" class="auth-overlay">
+  <div class="auth-box">
+    <h1>⚡ LLM Router</h1>
+    <p class="auth-sub" id="authSub">Sign in to continue</p>
+    <div class="auth-err" id="authErr"></div>
+    <label>Email</label>
+    <input type="email" id="authEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter')submitAuth()">
+    <label>Password</label>
+    <input type="password" id="authPassword" placeholder="Minimum 8 characters" onkeydown="if(event.key==='Enter')submitAuth()">
+    <button class="auth-submit" id="authSubmit" onclick="submitAuth()">Sign In</button>
+    <div class="auth-toggle" id="authToggle">No account? <a href="#" onclick="toggleAuthMode();return false;">Register</a></div>
+    <div style="text-align:center; margin-top:10px;"><a href="#" style="font-size:12px; color:#555; text-decoration:none;" onclick="toggleReset();return false;">Forgot password?</a></div>
+  </div>
+
+  <div class="auth-box" id="resetBox" style="display:none;">
+    <h1>⚡ LLM Router</h1>
+    <p class="auth-sub">Reset your password</p>
+    <div class="auth-err" id="resetErr"></div>
+    <div id="resetOk" style="display:none; background:#1e3a2f; border:1px solid #2a6b4f; border-radius:8px; padding:8px 12px; font-size:13px; color:#6ee7b7; margin-bottom:8px;">Password updated — sign in below.</div>
+    <label>Email</label>
+    <input type="email" id="resetEmail" placeholder="you@example.com">
+    <label>New Password</label>
+    <input type="password" id="resetPassword" placeholder="Minimum 8 characters">
+    <label>Recovery Code <span style="color:#555; font-weight:normal;">(from your .env file)</span></label>
+    <input type="password" id="resetSecret" placeholder="RESET_SECRET value" onkeydown="if(event.key==='Enter')submitReset()">
+    <button class="auth-submit" onclick="submitReset()">Reset Password</button>
+    <div class="auth-toggle"><a href="#" onclick="toggleReset();return false;">← Back to Sign In</a></div>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="sidebar-header">⚡ LLM Router<button class="logout-btn" onclick="logout()" title="Sign out">↩</button></div>
+
+  <div class="sidebar-section">Model</div>
+  <select class="model-select" id="modelSelect">
+    <option value="auto">⚡ Auto Fallback</option>
+  </select>
+
+  <div id="adminLink" style="display:none; padding: 4px 12px;">
+    <a href="/admin" style="font-size:12px; color:#a5b4fc; text-decoration:none;">⚙ Admin Panel</a>
+  </div>
+
+  <div class="sidebar-section">Chats</div>
+  <button class="new-chat-btn" onclick="newChat()">+ New Chat</button>
+
+  <div class="sidebar-section">Agents</div>
+  <div class="agent-list" id="agentList"></div>
+  <button class="new-agent-btn" onclick="openModal()">+ New Agent</button>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <span class="topbar-title" id="topbarTitle">New Chat</span>
+    <span class="provider-badge" id="providerBadge" style="display:none"></span>
+    <button class="clear-btn" onclick="newChat()">Clear</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="empty-state">
+      <h2>Free LLM Router</h2>
+      ~51M free tokens/day across 4 providers<br>
+      Auto-switches when one hits its limit
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-row">
+      <textarea id="promptInput" placeholder="Message… (Enter to send, Shift+Enter for new line)" rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modelsPopupOverlay">
+  <div class="models-popup">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+      <h2>🔥 Today's Top Free Models</h2>
+      <button onclick="closeModelsPopup()" style="background:none;border:none;color:#555;cursor:pointer;font-size:20px;line-height:1;padding:0 2px;">×</button>
+    </div>
+    <div class="sub">Refreshed daily at 9am UTC · Select any from the model dropdown</div>
+    <div class="models-list" id="modelsPopupList"></div>
+    <div class="modal-btns">
+      <button class="btn-save" onclick="closeModelsPopup()">Got it</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2>Create Agent</h2>
+    <p>Agents have a system prompt that shapes every reply.</p>
+    <label>Agent Name</label>
+    <input type="text" id="agentName" placeholder="e.g. Customer Support Bot">
+    <label>System Prompt</label>
+    <textarea id="agentPrompt" placeholder="You are a helpful assistant that only answers questions about..."></textarea>
+    <label>Default Model</label>
+    <select id="agentModel">
+      <option value="auto">⚡ Auto Fallback</option>
+    </select>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveAgent()">Create Agent</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let history = [];
+  let activeAgent = null;
+  let agentsCache = [];
+  let authMode = 'login';
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  function checkAuth() {
+    const token = localStorage.getItem('token');
+    document.getElementById('authOverlay').style.display = token ? 'none' : 'flex';
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        document.getElementById('adminLink').style.display = payload.is_admin ? 'block' : 'none';
+      } catch(e) {}
+    }
+    return !!token;
+  }
+
+  function toggleAuthMode() {
+    authMode = authMode === 'login' ? 'register' : 'login';
+    const isLogin = authMode === 'login';
+    document.getElementById('authSub').textContent = isLogin ? 'Sign in to continue' : 'Create your account';
+    document.getElementById('authSubmit').textContent = isLogin ? 'Sign In' : 'Register';
+    document.getElementById('authToggle').innerHTML = isLogin
+      ? 'No account? <a href="#" onclick="toggleAuthMode();return false;">Register</a>'
+      : 'Already registered? <a href="#" onclick="toggleAuthMode();return false;">Sign In</a>';
+    document.getElementById('authErr').style.display = 'none';
+  }
+
+  async function submitAuth() {
+    const email = document.getElementById('authEmail').value.trim();
+    const password = document.getElementById('authPassword').value;
+    const errEl = document.getElementById('authErr');
+    errEl.style.display = 'none';
+    if (!email || !password) { errEl.textContent = 'Email and password are required'; errEl.style.display = 'block'; return; }
+    try {
+      const resp = await fetch(authMode === 'login' ? '/api/login' : '/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error || 'Something went wrong'; errEl.style.display = 'block'; return; }
+      if (authMode === 'register') {
+        toggleAuthMode();
+        document.getElementById('authSub').textContent = 'Account created! Sign in below.';
+        document.getElementById('authEmail').value = email;
+        return;
+      }
+      localStorage.setItem('token', data.token);
+      document.getElementById('authOverlay').style.display = 'none';
+      try {
+        const payload = JSON.parse(atob(data.token.split('.')[1]));
+        document.getElementById('adminLink').style.display = payload.is_admin ? 'block' : 'none';
+      } catch(e) {}
+      init();
+    } catch(e) {
+      errEl.textContent = 'Connection error — is the server running?';
+      errEl.style.display = 'block';
+    }
+  }
+
+  function toggleReset() {
+    const loginBox = document.querySelector('.auth-box');
+    const resetBox = document.getElementById('resetBox');
+    const showing = resetBox.style.display !== 'none';
+    loginBox.style.display = showing ? '' : 'none';
+    resetBox.style.display = showing ? 'none' : '';
+    document.getElementById('resetErr').style.display = 'none';
+    document.getElementById('resetOk').style.display = 'none';
+  }
+
+  async function submitReset() {
+    const email = document.getElementById('resetEmail').value.trim();
+    const new_password = document.getElementById('resetPassword').value;
+    const reset_secret = document.getElementById('resetSecret').value;
+    const errEl = document.getElementById('resetErr');
+    errEl.style.display = 'none';
+    document.getElementById('resetOk').style.display = 'none';
+    if (!email || !new_password || !reset_secret) {
+      errEl.textContent = 'All fields are required';
+      errEl.style.display = 'block';
+      return;
+    }
+    try {
+      const resp = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, new_password, reset_secret }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) { errEl.textContent = data.error || 'Reset failed'; errEl.style.display = 'block'; return; }
+      document.getElementById('resetOk').style.display = 'block';
+      document.getElementById('resetPassword').value = '';
+      document.getElementById('resetSecret').value = '';
+      setTimeout(toggleReset, 1500);
+    } catch(e) {
+      errEl.textContent = 'Connection error';
+      errEl.style.display = 'block';
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    history = []; activeAgent = null; agentsCache = [];
+    renderMessages(); renderAgents();
+    document.getElementById('authOverlay').style.display = 'flex';
+  }
+
+  async function apiFetch(url, options = {}) {
+    const token = localStorage.getItem('token');
+    const resp = await fetch(url, {
+      ...options,
+      headers: { ...(options.headers || {}), ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+    });
+    if (resp.status === 401) { logout(); }
+    return resp;
+  }
+
+  // ── Featured models popup ─────────────────────────────────────────────────
+  function closeModelsPopup() {
+    document.getElementById('modelsPopupOverlay').classList.remove('open');
+  }
+
+  function maybeShowModelsPopup(providers) {
+    const todayUTC  = new Date().toISOString().slice(0, 10);
+    const utcHour   = new Date().getUTCHours();
+    const storageKey = `models_shown_${todayUTC}`;
+
+    if (localStorage.getItem(storageKey)) return;
+    if (utcHour < 9) return;
+
+    const featured = providers.filter(p => p.featured);
+    if (!featured.length) return;
+
+    const list = document.getElementById('modelsPopupList');
+    list.innerHTML = '';
+    featured.forEach((m, i) => {
+      const row  = document.createElement('div');
+      row.className = 'model-row';
+
+      const num  = document.createElement('span');
+      num.className = 'model-num';
+      num.textContent = i + 1;
+
+      const name = document.createElement('span');
+      name.className = 'model-name';
+      name.textContent = m.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'model-meta';
+
+      if (m.context) {
+        const ctx = document.createElement('span');
+        ctx.textContent = Math.round(m.context / 1000) + 'k';
+        meta.appendChild(ctx);
+      }
+
+      const price = document.createElement('span');
+      const isFree = !m.price || m.price === 'free';
+      price.className = isFree ? 'model-free' : '';
+      price.textContent = isFree ? 'FREE' : m.price;
+      meta.appendChild(price);
+
+      row.appendChild(num);
+      row.appendChild(name);
+      row.appendChild(meta);
+      list.appendChild(row);
+    });
+
+    document.getElementById('modelsPopupOverlay').classList.add('open');
+    localStorage.setItem(storageKey, '1');
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  async function init() {
+    if (!checkAuth()) return;
+    try {
+      const resp = await apiFetch('/api/providers');
+      const providers = await resp.json();
+      const sel = document.getElementById('modelSelect');
+      const agentModel = document.getElementById('agentModel');
+      sel.innerHTML = '<option value="auto">⚡ Auto Fallback</option>';
+      agentModel.innerHTML = '<option value="auto">⚡ Auto Fallback</option>';
+      providers.forEach(p => {
+        const label = p.featured ? `✦ ${p.name}` : p.name;
+        sel.innerHTML += `<option value="${p.id}">${label}</option>`;
+        agentModel.innerHTML += `<option value="${p.id}">${label}</option>`;
+      });
+      maybeShowModelsPopup(providers);
+    } catch(e) { console.error('Could not load providers', e); }
+    await refreshAgents();
+  }
+
+  // ── Agents (server) ───────────────────────────────────────────────────────
+  async function refreshAgents() {
+    try {
+      const resp = await apiFetch('/api/agents');
+      agentsCache = await resp.json();
+    } catch(e) {
+      agentsCache = [];
+    }
+    renderAgents();
+  }
+
+  function renderAgents() {
+    const list = document.getElementById('agentList');
+    list.innerHTML = '';
+    agentsCache.forEach(agent => {
+      const div = document.createElement('div');
+      const isActive = activeAgent && activeAgent.id === agent.id;
+      div.className = 'agent-item' + (isActive ? ' active' : '');
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = '🤖 ' + agent.name;
+      const delBtn = document.createElement('button');
+      delBtn.className = 'del-btn';
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', (e) => deleteAgent(e, agent.id));
+      div.appendChild(nameSpan);
+      div.appendChild(delBtn);
+      div.addEventListener('click', () => selectAgent(agent));
+      list.appendChild(div);
+    });
+  }
+
+  async function selectAgent(agent) {
+    activeAgent = agent;
+    document.getElementById('topbarTitle').textContent = agent.name;
+    document.getElementById('modelSelect').value = agent.model || 'auto';
+    document.getElementById('providerBadge').style.display = 'none';
+    renderAgents();
+
+    // Load this agent's message history from the server
+    try {
+      const resp = await apiFetch(`/api/agents/${agent.id}/messages`);
+      const msgs = await resp.json();
+      history = msgs.map(m => ({
+        role: m.role,
+        content: m.content,
+        provider: m.provider || '',
+        usage: m.usage || null,
+      }));
+    } catch(e) {
+      history = [];
+    }
+    renderMessages();
+  }
+
+  async function deleteAgent(e, agentId) {
+    e.stopPropagation();
+    await apiFetch(`/api/agents/${agentId}`, { method: 'DELETE' });
+    if (activeAgent && activeAgent.id === agentId) {
+      activeAgent = null;
+      history = [];
+      document.getElementById('topbarTitle').textContent = 'New Chat';
+      document.getElementById('providerBadge').style.display = 'none';
+      renderMessages();
+    }
+    await refreshAgents();
+  }
+
+  function openModal() {
+    document.getElementById('modalOverlay').classList.add('open');
+    document.getElementById('agentName').focus();
+  }
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('agentName').value = '';
+    document.getElementById('agentPrompt').value = '';
+    document.getElementById('agentModel').value = 'auto';
+  }
+  async function saveAgent() {
+    const name = document.getElementById('agentName').value.trim();
+    if (!name) { document.getElementById('agentName').focus(); return; }
+    await apiFetch('/api/agents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        system_prompt: document.getElementById('agentPrompt').value,
+        model: document.getElementById('agentModel').value,
+      }),
+    });
+    closeModal();
+    await refreshAgents();
+  }
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  function newChat() {
+    activeAgent = null;
+    history = [];
+    document.getElementById('topbarTitle').textContent = 'New Chat';
+    document.getElementById('providerBadge').style.display = 'none';
+    renderMessages();
+    renderAgents();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('promptInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    input.value = '';
+    autoResize(input);
+    sendBtn.disabled = true;
+
+    history.push({ role: 'user', content: text });
+
+    // Snapshot messages for the API (last 50, before adding placeholder)
+    const apiMessages = history.slice(-50).map(({ role, content }) => ({ role, content }));
+
+    const assistantMsg = { role: 'assistant', content: '', provider: '', usage: null };
+    history.push(assistantMsg);
+    renderMessages();
+
+    const model = activeAgent ? (activeAgent.model || 'auto') : document.getElementById('modelSelect').value;
+    const body = { messages: apiMessages, provider: model };
+    if (activeAgent && activeAgent.system_prompt) body.system_prompt = activeAgent.system_prompt;
+
+    try {
+      const resp = await apiFetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!resp.ok || !resp.body) {
+        const err = await resp.json().catch(() => ({}));
+        assistantMsg.content = err.error || `HTTP ${resp.status}`;
+        updateLastBubble();
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === 'provider') {
+              assistantMsg.provider = data.name;
+            } else if (data.type === 'chunk') {
+              assistantMsg.content += data.content;
+            } else if (data.type === 'done') {
+              assistantMsg.provider = data.provider || assistantMsg.provider;
+              assistantMsg.usage = data.usage;
+            } else if (data.type === 'error') {
+              assistantMsg.content = data.message || 'Error';
+            }
+            updateLastBubble();
+          } catch(e) {}
+        }
+      }
+
+      // Persist the exchange to the server if an agent is active
+      if (activeAgent && assistantMsg.content && !assistantMsg.content.startsWith('Error')) {
+        apiFetch(`/api/agents/${activeAgent.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [
+              { role: 'user', content: text },
+              {
+                role: 'assistant',
+                content: assistantMsg.content,
+                provider: assistantMsg.provider,
+                usage: assistantMsg.usage,
+              },
+            ],
+          }),
+        }).catch(console.error);
+      }
+
+    } catch (e) {
+      assistantMsg.content = 'Error: ' + e.message;
+      updateLastBubble();
+    } finally {
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  // Updates only the last message bubble — no full re-render
+  function updateLastBubble() {
+    const box = document.getElementById('messages');
+    const msgEl = box.lastElementChild;
+    if (!msgEl) return;
+
+    const assistantMsg = history[history.length - 1];
+    const msgBody = msgEl.querySelector('.msg-body');
+    if (!msgBody) return;
+
+    // Swap typing dots for a real bubble on first chunk
+    if (!msgBody.querySelector('.bubble') && assistantMsg.content) {
+      msgBody.innerHTML = '<div class="bubble"></div><div class="msg-meta"></div>';
+    }
+
+    const bubble = msgBody.querySelector('.bubble');
+    const meta = msgBody.querySelector('.msg-meta');
+
+    if (bubble) bubble.innerHTML = escHtml(assistantMsg.content);
+
+    if (meta) {
+      let metaText = assistantMsg.provider || '';
+      if (assistantMsg.usage) {
+        const total = (assistantMsg.usage.input_tokens || 0) + (assistantMsg.usage.output_tokens || 0);
+        if (total) metaText += (metaText ? ' · ' : '') + `${total} tokens`;
+      }
+      meta.textContent = metaText;
+    }
+
+    if (assistantMsg.provider) {
+      const badge = document.getElementById('providerBadge');
+      badge.textContent = assistantMsg.provider;
+      badge.style.display = '';
+    }
+
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function renderMessages() {
+    const box = document.getElementById('messages');
+    if (!history.length) {
+      box.innerHTML = `<div class="empty-state"><h2>Free LLM Router</h2>~51M free tokens/day across 4 providers<br>Auto-switches when one hits its limit</div>`;
+      return;
+    }
+    box.innerHTML = '';
+    history.forEach((m, i) => {
+      const div = document.createElement('div');
+      div.className = `message ${m.role}`;
+      const avatar = m.role === 'user' ? '👤' : '🤖';
+
+      const isStreaming = m.role === 'assistant' && !m.content && i === history.length - 1;
+      let msgBodyHTML;
+
+      if (isStreaming) {
+        msgBodyHTML = `<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+      } else {
+        let metaText = m.provider || '';
+        if (m.usage) {
+          const total = (m.usage.input_tokens || 0) + (m.usage.output_tokens || 0);
+          if (total) metaText += (metaText ? ' · ' : '') + `${total} tokens`;
+        }
+        msgBodyHTML = `<div class="bubble">${escHtml(m.content)}</div><div class="msg-meta">${escHtml(metaText)}</div>`;
+      }
+
+      div.innerHTML = `<div class="avatar">${avatar}</div><div class="msg-body">${msgBodyHTML}</div>`;
+      box.appendChild(div);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+flask
+flask-cors
+httpx
+python-dotenv
+PyJWT
+psycopg2-binary
