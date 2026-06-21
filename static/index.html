@@ -106,6 +106,11 @@
   .auth-submit { width: 100%; margin-top: 20px; padding: 10px; background: #4f46e5; border: none; border-radius: 8px; color: #fff; font-size: 14px; cursor: pointer; }
   .auth-submit:hover { background: #4338ca; }
   .auth-err { background: #2d1515; border: 1px solid #5a2020; border-radius: 8px; padding: 8px 12px; font-size: 13px; color: #f87171; margin-bottom: 8px; display: none; }
+  .auth-invite { background: #1a1f2e; border: 1px solid #2d3a5e; border-radius: 10px; padding: 20px 16px; text-align: center; display: none; }
+  .auth-invite h3 { font-size: 15px; color: #e0e0e0; margin-bottom: 8px; }
+  .auth-invite p { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 12px; }
+  .auth-invite a { color: #a5b4fc; text-decoration: none; font-weight: 500; }
+  .auth-invite a:hover { text-decoration: underline; }
   .auth-toggle { margin-top: 16px; font-size: 13px; color: #666; text-align: center; }
   .auth-toggle a { color: #a5b4fc; text-decoration: none; }
   .logout-btn { margin-left: auto; background: none; border: 1px solid #333; color: #777; cursor: pointer; font-size: 11px; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.3px; }
@@ -119,11 +124,18 @@
     <h1>⚡ LLM Router</h1>
     <p class="auth-sub" id="authSub">Sign in to continue</p>
     <div class="auth-err" id="authErr"></div>
-    <label>Email</label>
-    <input type="email" id="authEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter')submitAuth()">
-    <label>Password</label>
-    <input type="password" id="authPassword" placeholder="Minimum 8 characters" onkeydown="if(event.key==='Enter')submitAuth()">
-    <button class="auth-submit" id="authSubmit" onclick="submitAuth()">Sign In</button>
+    <div class="auth-invite" id="authInvite">
+      <h3>Invitation Only</h3>
+      <p>This platform is currently closed to new registrations.<br>To request access, email us and we'll send you an invite.</p>
+      <a href="mailto:info@kloudstack.co.uk">info@kloudstack.co.uk</a>
+    </div>
+    <div id="authFields">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="you@example.com" onkeydown="if(event.key==='Enter')submitAuth()">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="Minimum 8 characters" onkeydown="if(event.key==='Enter')submitAuth()">
+      <button class="auth-submit" id="authSubmit" onclick="submitAuth()">Sign In</button>
+    </div>
     <div class="auth-toggle" id="authToggle">No account? <a href="#" onclick="toggleAuthMode();return false;">Register</a></div>
     <div style="text-align:center; margin-top:10px;"><a href="#" style="font-size:12px; color:#555; text-decoration:none;" onclick="toggleReset();return false;">Forgot password?</a></div>
   </div>
@@ -137,8 +149,8 @@
     <input type="email" id="resetEmail" placeholder="you@example.com">
     <label>New Password</label>
     <input type="password" id="resetPassword" placeholder="Minimum 8 characters">
-    <label>Recovery Code <span style="color:#555; font-weight:normal;">(from your .env file)</span></label>
-    <input type="password" id="resetSecret" placeholder="RESET_SECRET value" onkeydown="if(event.key==='Enter')submitReset()">
+    <label>Recovery Code <span style="color:#555; font-weight:normal;">— email <a href="mailto:info@kloudstack.co.uk" style="color:#a5b4fc; text-decoration:none;">info@kloudstack.co.uk</a> to receive it</span></label>
+    <input type="password" id="resetSecret" placeholder="Paste the code from your email" onkeydown="if(event.key==='Enter')submitReset()">
     <button class="auth-submit" onclick="submitReset()">Reset Password</button>
     <div class="auth-toggle"><a href="#" onclick="toggleReset();return false;">← Back to Sign In</a></div>
   </div>
@@ -248,6 +260,9 @@
       ? 'No account? <a href="#" onclick="toggleAuthMode();return false;">Register</a>'
       : 'Already registered? <a href="#" onclick="toggleAuthMode();return false;">Sign In</a>';
     document.getElementById('authErr').style.display = 'none';
+    document.getElementById('authInvite').style.display = 'none';
+    document.getElementById('authFields').style.display = '';
+    document.getElementById('authToggle').style.display = '';
   }
 
   async function submitAuth() {
@@ -263,7 +278,18 @@
         body: JSON.stringify({ email, password }),
       });
       const data = await resp.json();
-      if (!resp.ok) { errEl.textContent = data.error || 'Something went wrong'; errEl.style.display = 'block'; return; }
+      if (!resp.ok) {
+        if (resp.status === 403 && authMode === 'register') {
+          document.getElementById('authFields').style.display = 'none';
+          document.getElementById('authToggle').style.display = 'none';
+          document.getElementById('authInvite').style.display = 'block';
+          document.getElementById('authSub').textContent = '';
+        } else {
+          errEl.textContent = data.error || 'Something went wrong';
+          errEl.style.display = 'block';
+        }
+        return;
+      }
       if (authMode === 'register') {
         toggleAuthMode();
         document.getElementById('authSub').textContent = 'Account created! Sign in below.';
